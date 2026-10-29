@@ -1,0 +1,98 @@
+# Sample requests for the WorkItemTracker API.
+#
+# Before sending requests:
+# 1. Seed the database:
+#      dotnet run --project tools/WorkItemTracker.Seeder
+# 2. Create a file named .env next to this file with a token for each seeded user:
+#      NADIA_TOKEN=<token>
+#      TOBIAS_TOKEN=<token>
+#    Get each token from:
+#      dotnet user-jwts create --project src/WorkItemTracker.Api --name nadia --output token
+#    (and again with --name tobias). Git ignores .env, so the tokens stay on your machine.
+# 3. Start the API with the "http" launch profile.
+#
+# Send the requests in order. Later requests use ids returned by earlier ones.
+
+@baseUrl = http://localhost:5272
+@nadiaToken = {{$dotenv NADIA_TOKEN}}
+@tobiasToken = {{$dotenv TOBIAS_TOKEN}}
+
+### List my projects
+# @name myProjects
+GET {{baseUrl}}/api/projects
+Authorization: Bearer {{nadiaToken}}
+
+### List assignees
+GET {{baseUrl}}/api/assignees
+Authorization: Bearer {{nadiaToken}}
+
+### List my work items, filtered and paged
+GET {{baseUrl}}/api/workitems?status=InProgress&dueBefore=2026-12-31&page=1&pageSize=20
+Authorization: Bearer {{nadiaToken}}
+
+### Create a work item in my first project
+# @name createWorkItem
+POST {{baseUrl}}/api/workitems
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json
+
+{
+  "projectId": {{myProjects.response.body.$[0].id}},
+  "title": "Collect supplier quotes",
+  "description": "Request quotes from at least three suppliers.",
+  "priority": "High",
+  "dueDate": "2026-11-15",
+  "assigneeId": 1
+}
+
+### Get one work item
+GET {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}
+Authorization: Bearer {{nadiaToken}}
+
+### Update a work item
+PUT {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}
+Authorization: Bearer {{tobiasToken}}
+Content-Type: application/json
+
+{
+  "title": "Collect and compare supplier quotes",
+  "description": "Request quotes from at least three suppliers and compare them.",
+  "priority": "Medium",
+  "dueDate": "2026-10-30",
+  "assigneeId": null
+}
+
+### Change a work item's assignee
+PUT {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}/assignee
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json
+
+{
+  "assigneeId": 2
+}
+
+### Another user asks for the same work item
+GET {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}
+Authorization: Bearer {{tobiasToken}}
+
+### Create a project
+POST {{baseUrl}}/api/projects
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json
+
+{
+  "name": "Supplier Review"
+}
+
+### Overdue work items in my first project
+GET {{baseUrl}}/api/workitems/overdue?projectId={{myProjects.response.body.$[0].id}}
+Authorization: Bearer {{nadiaToken}}
+
+### Partially update a work item
+PATCH {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json-patch+json
+
+[
+  { "op": "replace", "path": "/title", "value": "Collect three supplier quotes" }
+]
