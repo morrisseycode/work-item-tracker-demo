@@ -96,3 +96,21 @@ Content-Type: application/json-patch+json
 [
   { "op": "replace", "path": "/title", "value": "Collect three supplier quotes" }
 ]
+
+### Cancel a work item
+PATCH {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}/status
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json
+
+{
+  "status": "Cancelled"
+}
+
+### Complete the same work item
+PATCH {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}/status
+Authorization: Bearer {{nadiaToken}}
+Content-Type: application/json
+
+{
+  "status": "Completed"
+}

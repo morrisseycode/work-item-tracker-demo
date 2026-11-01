@@ -33,6 +33,26 @@ public class UpdateAssigneeTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task Put_assignee_on_an_unassigned_item_returns_a_null_previous_name()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var assignee = new Assignee { DisplayName = "Priya Raman" };
+        var workItem = TestData.NewWorkItem(Owner);
+        await factory.SeedAsync(TestData.NewProject(Owner, workItem), assignee);
+
+        var response = await factory.CreateClientFor(Owner).PutAsJsonAsync(
+            $"/api/workitems/{workItem.Id}/assignee",
+            new UpdateWorkItemAssigneeRequest(assignee.Id),
+            ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<WorkItemAssigneeChangeResponse>(ct);
+        Assert.Null(body!.PreviousAssigneeName);
+        Assert.Equal("Priya Raman", body.WorkItem.AssigneeName);
+    }
+
+
+    [Fact]
     public async Task Put_null_assignee_unassigns_the_item()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -139,15 +139,19 @@ public class WorkItemsController(
         }
 
         var status = request.Status!.Value;
-        if (status != WorkItemStatus.Completed)
+        if (!WorkItemStatusTransitions.CanChange(workItem.Status, status))
         {
-            workItem.CompletedAt = null;
-        }
-        else if (workItem.Status != WorkItemStatus.Completed)
-        {
-            workItem.CompletedAt = timeProvider.GetUtcNow();
+            ModelState.AddModelError(
+                nameof(UpdateWorkItemStatusRequest.Status),
+                $"A work item can't change from {workItem.Status} to {status}.");
+            return ValidationProblem(ModelState);
         }
 
+        // Only InProgress can change to Completed, so a change to Completed always starts
+        // a new completion.
+        workItem.CompletedAt = status == WorkItemStatus.Completed
+            ? timeProvider.GetUtcNow()
+            : null;
         workItem.Status = status;
         await db.SaveChangesAsync(cancellationToken);
 
@@ -172,7 +176,7 @@ public class WorkItemsController(
             return UnknownAssignee();
         }
 
-        var previousAssigneeName = workItem.Assignee.DisplayName;
+        var previousAssigneeName = workItem.Assignee?.DisplayName;
         workItem.AssigneeId = request.AssigneeId;
         await db.SaveChangesAsync(cancellationToken);
         await db.Entry(workItem).Reference(w => w.Assignee).LoadAsync(cancellationToken);

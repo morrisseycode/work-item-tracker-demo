@@ -54,7 +54,7 @@ public class UpdateStatusTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Patch_status_to_completed_again_keeps_the_original_completion_time()
+    public async Task Patch_status_to_completed_again_returns_400_and_keeps_the_completion_time()
     {
         var ct = TestContext.Current.CancellationToken;
         var completedAt = new DateTimeOffset(2026, 1, 20, 17, 0, 0, TimeSpan.Zero);
@@ -67,8 +67,66 @@ public class UpdateStatusTests(ApiFactory factory) : IClassFixture<ApiFactory>
             new UpdateWorkItemStatusRequest(WorkItemStatus.Completed),
             ct);
 
-        var body = await response.Content.ReadFromJsonAsync<WorkItemResponse>(ct);
-        Assert.Equal(completedAt, body!.CompletedAt);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var stored = await factory.QueryDbAsync(db =>
+            db.WorkItems.AsNoTracking().SingleAsync(w => w.Id == workItem.Id, ct));
+        Assert.Equal(completedAt, stored.CompletedAt);
+    }
+
+    [Theory]
+    [InlineData(WorkItemStatus.New, WorkItemStatus.InProgress)]
+    [InlineData(WorkItemStatus.New, WorkItemStatus.Cancelled)]
+    [InlineData(WorkItemStatus.InProgress, WorkItemStatus.New)]
+    [InlineData(WorkItemStatus.InProgress, WorkItemStatus.Completed)]
+    [InlineData(WorkItemStatus.InProgress, WorkItemStatus.Cancelled)]
+    [InlineData(WorkItemStatus.Completed, WorkItemStatus.InProgress)]
+    public async Task Patch_status_with_an_allowed_change_saves_the_new_status(
+        WorkItemStatus from,
+        WorkItemStatus to)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var workItem = TestData.NewWorkItem(Owner, status: from);
+        await factory.SeedAsync(TestData.NewProject(Owner, workItem));
+
+        var response = await factory.CreateClientFor(Owner).PatchAsJsonAsync(
+            $"/api/workitems/{workItem.Id}/status",
+            new UpdateWorkItemStatusRequest(to),
+            ct);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var stored = await factory.QueryDbAsync(db =>
+            db.WorkItems.AsNoTracking().SingleAsync(w => w.Id == workItem.Id, ct));
+        Assert.Equal(to, stored.Status);
+    }
+
+    [Theory]
+    [InlineData(WorkItemStatus.New, WorkItemStatus.New)]
+    [InlineData(WorkItemStatus.New, WorkItemStatus.Completed)]
+    [InlineData(WorkItemStatus.InProgress, WorkItemStatus.InProgress)]
+    [InlineData(WorkItemStatus.Completed, WorkItemStatus.New)]
+    [InlineData(WorkItemStatus.Completed, WorkItemStatus.Completed)]
+    [InlineData(WorkItemStatus.Completed, WorkItemStatus.Cancelled)]
+    [InlineData(WorkItemStatus.Cancelled, WorkItemStatus.New)]
+    [InlineData(WorkItemStatus.Cancelled, WorkItemStatus.InProgress)]
+    [InlineData(WorkItemStatus.Cancelled, WorkItemStatus.Completed)]
+    [InlineData(WorkItemStatus.Cancelled, WorkItemStatus.Cancelled)]
+    public async Task Patch_status_with_a_disallowed_change_returns_400_and_keeps_the_status(
+        WorkItemStatus from,
+        WorkItemStatus to)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var workItem = TestData.NewWorkItem(Owner, status: from);
+        await factory.SeedAsync(TestData.NewProject(Owner, workItem));
+
+        var response = await factory.CreateClientFor(Owner).PatchAsJsonAsync(
+            $"/api/workitems/{workItem.Id}/status",
+            new UpdateWorkItemStatusRequest(to),
+            ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var stored = await factory.QueryDbAsync(db =>
+            db.WorkItems.AsNoTracking().SingleAsync(w => w.Id == workItem.Id, ct));
+        Assert.Equal(from, stored.Status);
     }
 
     [Fact]
