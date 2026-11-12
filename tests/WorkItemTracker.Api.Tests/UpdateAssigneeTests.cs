@@ -51,7 +51,6 @@ public class UpdateAssigneeTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("Priya Raman", body.WorkItem.AssigneeName);
     }
 
-
     [Fact]
     public async Task Put_null_assignee_unassigns_the_item()
     {
