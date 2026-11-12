@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.JsonPatch.SystemTextJson;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -223,30 +222,6 @@ public class WorkItemsController(
         return overdue;
     }
 
-    [HttpPatch("{id:int}")]
-    public async Task<ActionResult<WorkItemResponse>> PatchWorkItem(
-        int id,
-        JsonPatchDocument<WorkItem> patch,
-        CancellationToken cancellationToken)
-    {
-        var workItem = await OwnedWorkItems()
-            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
-        if (workItem is null)
-        {
-            return NotFound();
-        }
-
-        patch.ApplyTo(workItem, error =>
-            ModelState.AddModelError(string.Empty, error.ErrorMessage));
-        if (!ModelState.IsValid)
-        {
-            return ValidationProblem(ModelState);
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        return WorkItemResponse.FromEntity(workItem);
-    }
 
     private WorkItem NewWorkItem(CreateWorkItemRequest request, string ownerId) => new()
     {

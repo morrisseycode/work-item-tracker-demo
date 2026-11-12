@@ -86,7 +86,7 @@ Content-Type: application/json
 
 ### Overdue work items in my first project
 GET {{baseUrl}}/api/workitems/overdue?projectId={{myProjects.response.body.$[0].id}}
-Authorization: Bearer {{nadiaToken}}
+Authorization: Bearer {{tobiasToken}}
 
 ### Partially update a work item
 PATCH {{baseUrl}}/api/workitems/{{createWorkItem.response.body.$.id}}
@@ -94,7 +94,7 @@ Authorization: Bearer {{nadiaToken}}
 Content-Type: application/json-patch+json
 
 [
-  { "op": "replace", "path": "/title", "value": "Collect three supplier quotes" }
+  { "op": "replace", "path": "/status", "value": "Completed" }
 ]
 
 ### Cancel a work item
