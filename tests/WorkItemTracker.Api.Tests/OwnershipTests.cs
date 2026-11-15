@@ -185,6 +185,41 @@ public class OwnershipTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.False(created);
     }
 
+    [Fact]
+    public async Task Owner_gets_the_overdue_work_items_in_their_project()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var workItem = await SeedOverdueWorkItemAsync("nina-overdue");
+
+        var items = await factory.CreateClientFor("nina-overdue")
+            .GetFromJsonAsync<List<OverdueWorkItemResponse>>(
+                $"/api/workitems/overdue?projectId={workItem.ProjectId}", ct);
+
+        var item = Assert.Single(items!);
+        Assert.Equal(workItem.Id, item.Id);
+    }
+
+    [Fact]
+    public async Task Another_user_gets_an_empty_overdue_list_like_a_missing_project()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var workItem = await SeedOverdueWorkItemAsync("omar-overdue");
+        var client = factory.CreateClientFor("pia-overdue");
+
+        var forbidden = await client.GetAsync(
+            $"/api/workitems/overdue?projectId={workItem.ProjectId}", ct);
+        var missing = await client.GetAsync("/api/workitems/overdue?projectId=999999", ct);
+
+        Assert.Equal(HttpStatusCode.OK, forbidden.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, missing.StatusCode);
+        var forbiddenItems =
+            await forbidden.Content.ReadFromJsonAsync<List<OverdueWorkItemResponse>>(ct);
+        var missingItems =
+            await missing.Content.ReadFromJsonAsync<List<OverdueWorkItemResponse>>(ct);
+        Assert.Empty(missingItems!);
+        Assert.Empty(forbiddenItems!);
+    }
+
     private Task<string> TitleInDbAsync(int workItemId) =>
         factory.QueryDbAsync(db => db.WorkItems
             .Where(w => w.Id == workItemId)
@@ -194,6 +229,15 @@ public class OwnershipTests(ApiFactory factory) : IClassFixture<ApiFactory>
     private async Task<WorkItem> SeedWorkItemAsync(string ownerId)
     {
         var workItem = TestData.NewWorkItem(ownerId);
+        await factory.SeedAsync(TestData.NewProject(ownerId, workItem));
+        return workItem;
+    }
+
+    // Due before the fixed "today" in TestTimeProvider, so the item counts as overdue.
+    private async Task<WorkItem> SeedOverdueWorkItemAsync(string ownerId)
+    {
+        var dueDate = DateOnly.FromDateTime(factory.Time.UtcNow.UtcDateTime).AddDays(-3);
+        var workItem = TestData.NewWorkItem(ownerId, dueDate: dueDate);
         await factory.SeedAsync(TestData.NewProject(ownerId, workItem));
         return workItem;
     }

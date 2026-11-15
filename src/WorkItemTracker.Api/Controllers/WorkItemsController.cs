@@ -191,7 +191,7 @@ public class WorkItemsController(
     {
         var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
 
-        var workItems = await db.WorkItems
+        var workItems = await OwnedWorkItems()
             .AsNoTracking()
             .Where(w => w.ProjectId == projectId && w.DueDate < today)
             .OrderByDescending(w => w.DueDate)
